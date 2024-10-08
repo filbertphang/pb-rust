@@ -6,6 +6,7 @@ use libp2p::{mdns, request_response, PeerId, StreamProtocol, Swarm};
 use std::error::Error;
 use std::fmt::Display;
 use std::time::Duration;
+use tokio::{io, io::AsyncBufReadExt, select};
 use tracing_subscriber::EnvFilter;
 
 fn truncate_peer_id(peer_id: &PeerId) -> String {
@@ -79,11 +80,8 @@ impl RequestResponseMDNSBehaviour {
 }
 
 // request and response handlers
-fn send_init_request(swarm: &mut Swarm<RequestResponseMDNSBehaviour>, peer_id: &PeerId) {
-    let truncated_peer_id = truncate_peer_id(peer_id);
-    let request = MyRequestType {
-        msg: format!("hello, {truncated_peer_id}!"),
-    };
+fn send_request(swarm: &mut Swarm<RequestResponseMDNSBehaviour>, peer_id: &PeerId, msg: String) {
+    let request = MyRequestType { msg };
     // note: `request_response::send_request` will automatically dial a peer
     // to send a message to them, if we don't yet have an active connection to them.
     swarm
@@ -103,10 +101,9 @@ fn handle_request(
     // what packets to return.
     // we would likely be calling lean functions here.
     let truncated_peer_id = truncate_peer_id(peer_id);
-    println!("request from {truncated_peer_id} with id {request_id}: {request}");
-    println!("sending response 1...");
+    println!("{truncated_peer_id} @ {request_id}: {request}");
     let response = MyResponseType {
-        msg: format!("thank you for your request! here is response 1, {truncated_peer_id}."),
+        msg: format!("acknowledged message with request_id {request_id}"),
     };
     swarm
         .behaviour_mut()
@@ -114,11 +111,11 @@ fn handle_request(
         .send_response(channel, response)
 }
 
-fn handle_response(peer_id: &PeerId, request_id: &RequestId, response: &MyResponseType) {
+fn handle_response(peer_id: &PeerId, response: &MyResponseType) {
     // in PB, this is where we would update the partial signature and generate a combined signature.
     // we would likely also be calling lean functions here.
     let truncated_peer_id = truncate_peer_id(peer_id);
-    println!("response from {truncated_peer_id} with id {request_id}: {response}");
+    println!("{truncated_peer_id}: {response}");
 }
 
 #[tokio::main]
@@ -145,57 +142,78 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let my_truncated_peer_id = truncate_peer_id(swarm.local_peer_id());
     println!("my peer id: {my_truncated_peer_id}");
 
+    // stdin reader
+    let mut stdin = io::BufReader::new(io::stdin()).lines();
+
     loop {
-        match swarm.select_next_some().await {
-            SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {address:?}"),
-            // MDNS: new peer discovered
-            SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::Mdns(
-                mdns::Event::Discovered(list),
-            )) => {
-                for (peer_id, _multiaddr) in list {
-                    let truncated_peer_id = truncate_peer_id(&peer_id);
-                    println!("mdns discovered a new peer: {truncated_peer_id}");
-                    send_init_request(&mut swarm, &peer_id);
+        select! {
+            // read a message from stdin, and send it to all connected peers
+            // use this to simulate a distributed system deciding to broadcast a message
+            // to all nodes
+            // adapted from `chat`: https://github.com/libp2p/rust-libp2p/tree/master/examples/chat
+            Ok(Some(line)) = stdin.next_line() => {
+                println!("sending msg to all connected peers: {line}");
+                // this is basically a `broadcast` function.
+                // might want to move this to be some form of helper function
+                let all_peers: Vec<PeerId>  = swarm.connected_peers().cloned().collect();
+                for peer_id in all_peers {
+                    send_request(&mut swarm, &peer_id, line.clone());
                 }
             }
-            // MDNS: peer expired
-            SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::Mdns(
-                mdns::Event::Expired(list),
-            )) => {
-                for (peer_id, _multiaddr) in list {
-                    let truncated_peer_id = truncate_peer_id(&peer_id);
-                    println!("mdns discover peer has expired: {truncated_peer_id}");
+
+            // handle a swarm event (poll the swarm)
+            event = swarm.select_next_some() => match event {
+                SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {address:?}"),
+                // MDNS: new peer discovered
+                SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::Mdns(
+                    mdns::Event::Discovered(list),
+                )) => {
+                    for (peer_id, _multiaddr) in list {
+                        // upon discovery of new peer, dial them
+                        let truncated_peer_id = truncate_peer_id(&peer_id);
+                        println!("mdns discovered a new peer: {truncated_peer_id}");
+                        swarm.dial(peer_id)?;
+                    }
                 }
+                // MDNS: peer expired
+                SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::Mdns(
+                    mdns::Event::Expired(list),
+                )) => {
+                    for (peer_id, _multiaddr) in list {
+                        let truncated_peer_id = truncate_peer_id(&peer_id);
+                        println!("mdns discover peer has expired: {truncated_peer_id}");
+                    }
+                }
+                // Request-Response: received a request
+                SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::RequestResponse(
+                    request_response::Event::Message {
+                        peer,
+                        message:
+                            request_response::Message::Request {
+                                request_id,
+                                request,
+                                channel,
+                            },
+                    },
+                )) => {
+                    handle_request(&mut swarm, &peer, &request_id, &request, channel)?;
+                }
+                // Request-Response: received a response
+                SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::RequestResponse(
+                    request_response::Event::Message {
+                        peer,
+                        message:
+                            request_response::Message::Response {
+                                request_id: _,
+                                response,
+                            },
+                    },
+                )) => {
+                    handle_response(&peer,  &response);
+                }
+                // Ignore all other events.
+                _ => {}
             }
-            // Request-Response: received a request
-            SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::RequestResponse(
-                request_response::Event::Message {
-                    peer,
-                    message:
-                        request_response::Message::Request {
-                            request_id,
-                            request,
-                            channel,
-                        },
-                },
-            )) => {
-                handle_request(&mut swarm, &peer, &request_id, &request, channel)?;
-            }
-            // Request-Response: received a response
-            SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::RequestResponse(
-                request_response::Event::Message {
-                    peer,
-                    message:
-                        request_response::Message::Response {
-                            request_id,
-                            response,
-                        },
-                },
-            )) => {
-                handle_response(&peer, &request_id, &response);
-            }
-            // Ignore all other events.
-            _ => {}
         }
     }
 }
