@@ -11,3 +11,6 @@ futures = "0.3.21"
 void = "1.0"
 serde = { version = "1.0", features = ["derive"]}
 serde_json = "1.0"
+lean-sys = { git = "https://github.com/filbertphang/lean-sys.git", tag = "v4.11.0" }
+
+

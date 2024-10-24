@@ -1063,6 +1063,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
+name = "lean-sys"
+version = "0.0.10"
+source = "git+https://github.com/filbertphang/lean-sys.git?tag=v4.11.0#948d640a6bf402c0952a96ea3c1f3e8d521c5e3d"
+dependencies = [
+ "libc",
+ "memoffset",
+ "parking_lot",
+ "static_assertions",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.159"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1499,6 +1510,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
+name = "memoffset"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1805,6 +1825,7 @@ name = "pb-rust"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "lean-sys",
  "libp2p",
  "serde",
  "serde_json",
