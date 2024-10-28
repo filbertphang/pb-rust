@@ -1,25 +1,57 @@
-use crate::ffitest::simple::{
-    initialize_lean_environment, lean_string_to_rust, rust_string_to_lean,
-};
+use crate::ffitest::simple::{cleanup_lean_io, rust_string_to_lean};
+use lean_sys::*;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Mutex;
+
+mod globals {
+    #[link(name = "Globals")]
+    extern "C" {
+        #[link_name = "initialize_Globals"]
+        pub fn initialize(builtin: u8, world: lean_sys::lean_obj_arg) -> lean_sys::lean_obj_res;
+        pub fn query(k: u8, world: lean_sys::lean_obj_arg) -> lean_sys::lean_obj_res;
+    }
+}
+
+pub fn initialize_lean_environment() {
+    unsafe {
+        lean_initialize_runtime_module();
+        lean_initialize(); // necessary if you (indirectly) access the `Lean` package
+        let builtin: u8 = 1;
+        let res = globals::initialize(builtin, lean_io_mk_world());
+        if lean_io_result_is_ok(res) {
+            lean_dec_ref(res);
+        } else {
+            lean_io_result_show_error(res);
+            lean_dec(res);
+            panic!("Failed to load callee!");
+        }
+        lean_io_mark_end_initialization();
+    }
+}
 
 static GLOBAL_HASHTBL: Lazy<Mutex<HashMap<u8, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 fn insert_to_hashtbl(k: u8, v: String) {
     let mut ht = GLOBAL_HASHTBL.lock().unwrap();
     ht.insert(k, v.clone());
-    println!("inserting {k}:{v} into the hashtbl");
+    println!("(rust) inserting {k}:{v} into the hashtbl");
 }
 
 fn query_hashtbl(k: u8) {
     let ht = GLOBAL_HASHTBL.lock().unwrap();
     let res = ht.get(&k);
     match res {
-        Some(x) => println!("query {k} in hashtbl: found {x}"),
-        None => println!("query {k} NOT found in hashtbl"),
+        Some(x) => println!("(rust) query {k} in hashtbl: found {x}"),
+        None => println!("(rust) query {k} NOT found in hashtbl"),
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn query_hashtbl_with_res(k: u8) -> *mut lean_object {
+    let ht = GLOBAL_HASHTBL.lock().unwrap();
+    let res = ht.get(&k).unwrap().clone();
+    unsafe { rust_string_to_lean(res) }
 }
 
 fn test_basic() {
@@ -30,12 +62,21 @@ fn test_basic() {
 }
 
 fn test_with_lean() {
-    panic!("nyi")
+    // we want to be able to access the global hashtbl state from lean.
+    // this is a stepping stone to implementing the [inputValue] function.
+    initialize_lean_environment();
+    unsafe {
+        insert_to_hashtbl(3, String::from("Hello, World!"));
+        let res = globals::query(3, lean_io_mk_world());
+        cleanup_lean_io(res);
+
+        insert_to_hashtbl(5, String::from("Goodbye, World!"));
+        let res2 = globals::query(5, lean_io_mk_world());
+        cleanup_lean_io(res2);
+    }
 }
 
 pub fn main(module: &str) {
-    // initialize_lean_environment();
-
     match module {
         "basic" => test_basic(),
         "with_lean" => test_with_lean(),
