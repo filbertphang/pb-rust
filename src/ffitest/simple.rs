@@ -12,7 +12,7 @@ mod simple {
     }
 }
 
-unsafe fn rust_string_to_lean(s: String) -> *mut lean_object {
+pub unsafe fn rust_string_to_lean(s: String) -> *mut lean_object {
     let c_str_s = std::ffi::CString::new(s).unwrap();
     // need to cast to *const u8, since that's the type accepted by `lean_mk_string`.
     let c_str_ptr = c_str_s.as_ptr();
@@ -21,7 +21,7 @@ unsafe fn rust_string_to_lean(s: String) -> *mut lean_object {
     c_str
 }
 
-unsafe fn lean_string_to_rust(s: *mut lean_object) -> String {
+pub unsafe fn lean_string_to_rust(s: *mut lean_object) -> String {
     let result_c_str_ptr = lean_string_cstr(s);
     let result_c_str = std::ffi::CStr::from_ptr(result_c_str_ptr as *const i8);
     let result_str = result_c_str.to_str().unwrap().to_string();
@@ -34,7 +34,7 @@ unsafe fn lean_string_to_rust(s: *mut lean_object) -> String {
 
 // https://lean-lang.org/lean4/doc/dev/ffi.html#initialization
 // https://git.leni.sh/aniva/RustCallLean/src/branch/main/src/main.rs#L30
-fn initialize_lean_environment() {
+pub fn initialize_lean_environment() {
     unsafe {
         lean_initialize_runtime_module();
         lean_initialize(); // necessary if you (indirectly) access the `Lean` package
@@ -88,6 +88,11 @@ fn test_print_from_lean() {
 // note: may want to write a macro or something similar to facilitate
 // rust-lean type conversions so we don't have to do this boilerplate
 // marshalling every time.
+//
+// when you use an `extern` function in lean, the called function is expected
+// to conform to lean's memory model.
+// so we have to do the marshalling here on the rust-side, rather than on
+// the lean side.
 #[no_mangle]
 pub unsafe extern "C" fn from_rust(s: *mut lean_object) -> *mut lean_object {
     let rust_str = lean_string_to_rust(s);
@@ -112,6 +117,6 @@ pub fn main(module: &str) {
         "ret" => test_return_from_lean(),
         "pr" => test_print_from_lean(),
         "baf" => test_back_and_forth_with_lean(),
-        _ => panic!("invalid ffitest module!"),
+        _ => panic!("invalid ffitest::simple test!"),
     }
 }

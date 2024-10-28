@@ -7,16 +7,23 @@ mod networktest {
     pub mod tcp;
 }
 
-pub mod ffitest;
+mod ffitest {
+    pub mod globals;
+    pub mod simple;
+}
 
 fn main() {
     let _ = match args().nth(1).unwrap().as_str() {
         "m" => networktest::libp2p_mdns::main().unwrap(),
         "mp" => networktest::libp2p_mdns_ping::main().unwrap(),
         "mrr" => networktest::libp2p_mdns_request_response::main().unwrap(),
-        "ffi" => {
+        "ffis" => {
             let module = args().nth(2).unwrap();
-            ffitest::main(module.as_str());
+            ffitest::simple::main(module.as_str());
+        }
+        "ffig" => {
+            let module = args().nth(2).unwrap();
+            ffitest::globals::main(module.as_str());
         }
         e => panic!("please enter a module to execute (invalid module: {e})"),
     };
