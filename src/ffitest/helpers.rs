@@ -30,7 +30,19 @@ pub unsafe fn index_lean_array(arr: *mut lean_object, idx: usize) -> usize {
 }
 
 pub unsafe fn rust_usize_vec_to_lean_array(vec: Vec<usize>) -> *mut lean_object {
-    panic!("nyi")
+    // this is fairly inefficient, because we do an O(n) loop to copy each array element
+    // to lean array, only to do another O(n) conversion from lean Array to lean List.
+    //
+    // we can probably do better by creating the lean array struct then just copying over
+    // the pointer for the underlying C-array into the `data` field of the struct,
+    // but lets worry about performance later.
+
+    let vec_len = vec.len();
+    let arr = lean_mk_empty_array_with_capacity(lean_box(vec_len));
+    for elem in vec {
+        lean_array_push(arr, lean_box(elem));
+    }
+    arr
 }
 
 // io helpers

@@ -35,11 +35,19 @@ unsafe fn test_create_array() {
     let bx = index_lean_array(res, 1) as u32;
     println!("second elem: {bx}");
 
+    dbg!(res);
+
     lean_dec(res);
 }
 
-fn test_print_array() {
-    panic!("nyi")
+unsafe fn test_print_array() {
+    let my_vec: Vec<u32> = vec![19, 112321, 1000];
+    let my_vec_as_usize: Vec<usize> = my_vec.into_iter().map(|x| x as usize).collect();
+    let lean_arr = rust_usize_vec_to_lean_array(my_vec_as_usize);
+    dbg!(lean_arr);
+
+    let res = arrays::print_array(lean_arr, lean_io_mk_world());
+    cleanup_lean_io(res);
 }
 
 pub fn main(module: &str) {
