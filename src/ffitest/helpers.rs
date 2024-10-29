@@ -1,6 +1,6 @@
 use lean_sys::*;
 
-// conversion functions
+// strings
 pub unsafe fn rust_string_to_lean(s: String) -> *mut lean_object {
     let c_str_s = std::ffi::CString::new(s).unwrap();
     // need to cast to *const u8, since that's the type accepted by `lean_mk_string`.
@@ -21,7 +21,7 @@ pub unsafe fn lean_string_to_rust(s: *mut lean_object) -> String {
     result_str
 }
 
-// array helpers
+// arrays
 pub unsafe fn index_lean_array(arr: *mut lean_object, idx: usize) -> usize {
     assert!(lean_is_array(arr));
     let boxed_elem = lean_array_uget(arr, idx);

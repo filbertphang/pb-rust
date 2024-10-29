@@ -12,6 +12,7 @@ mod ffitest {
     pub mod globals;
     mod helpers;
     pub mod simple;
+    pub mod structs;
 }
 
 fn main() {
@@ -30,6 +31,10 @@ fn main() {
         "ffil" => {
             let module = args().nth(2).unwrap();
             ffitest::arrays::main(module.as_str());
+        }
+        "ffist" => {
+            let module = args().nth(2).unwrap();
+            ffitest::structs::main(module.as_str());
         }
         e => panic!("please enter a module to execute (invalid module: {e})"),
     };

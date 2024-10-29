@@ -17,3 +17,7 @@ lean_lib Globals where
 @[default_target]
 lean_lib Arrays where
   defaultFacets := #[LeanLib.sharedFacet]
+
+@[default_target]
+lean_lib Structs where
+  defaultFacets := #[LeanLib.sharedFacet]
