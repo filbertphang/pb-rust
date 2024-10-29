@@ -21,6 +21,18 @@ pub unsafe fn lean_string_to_rust(s: *mut lean_object) -> String {
     result_str
 }
 
+// array helpers
+pub unsafe fn index_lean_array(arr: *mut lean_object, idx: usize) -> usize {
+    assert!(lean_is_array(arr));
+    let boxed_elem = lean_array_uget(arr, idx);
+    // unbox as usize, and leave it to the user to cast it to their desired type.
+    lean_unbox(boxed_elem)
+}
+
+pub unsafe fn rust_usize_vec_to_lean_array(vec: Vec<usize>) -> *mut lean_object {
+    panic!("nyi")
+}
+
 // io helpers
 pub unsafe fn cleanup_lean_io(o: *mut lean_object) {
     if lean_io_result_is_ok(o) {

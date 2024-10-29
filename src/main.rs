@@ -8,6 +8,7 @@ mod networktest {
 }
 
 mod ffitest {
+    pub mod arrays;
     pub mod globals;
     mod helpers;
     pub mod simple;
@@ -25,6 +26,10 @@ fn main() {
         "ffig" => {
             let module = args().nth(2).unwrap();
             ffitest::globals::main(module.as_str());
+        }
+        "ffil" => {
+            let module = args().nth(2).unwrap();
+            ffitest::arrays::main(module.as_str());
         }
         e => panic!("please enter a module to execute (invalid module: {e})"),
     };

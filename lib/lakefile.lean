@@ -13,3 +13,7 @@ lean_lib Simple where
 @[default_target]
 lean_lib Globals where
   defaultFacets := #[LeanLib.sharedFacet]
+
+@[default_target]
+lean_lib Arrays where
+  defaultFacets := #[LeanLib.sharedFacet]
