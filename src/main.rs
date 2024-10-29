@@ -9,6 +9,7 @@ mod networktest {
 
 mod ffitest {
     pub mod globals;
+    mod helpers;
     pub mod simple;
 }
 

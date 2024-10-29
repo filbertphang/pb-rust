@@ -1,4 +1,4 @@
-use crate::ffitest::simple::{cleanup_lean_io, rust_string_to_lean};
+use crate::ffitest::helpers::*;
 use lean_sys::*;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -10,23 +10,6 @@ mod globals {
         #[link_name = "initialize_Globals"]
         pub fn initialize(builtin: u8, world: lean_sys::lean_obj_arg) -> lean_sys::lean_obj_res;
         pub fn query(k: u8, world: lean_sys::lean_obj_arg) -> lean_sys::lean_obj_res;
-    }
-}
-
-pub fn initialize_lean_environment() {
-    unsafe {
-        lean_initialize_runtime_module();
-        lean_initialize(); // necessary if you (indirectly) access the `Lean` package
-        let builtin: u8 = 1;
-        let res = globals::initialize(builtin, lean_io_mk_world());
-        if lean_io_result_is_ok(res) {
-            lean_dec_ref(res);
-        } else {
-            lean_io_result_show_error(res);
-            lean_dec(res);
-            panic!("Failed to load callee!");
-        }
-        lean_io_mark_end_initialization();
     }
 }
 
@@ -64,8 +47,9 @@ fn test_basic() {
 fn test_with_lean() {
     // we want to be able to access the global hashtbl state from lean.
     // this is a stepping stone to implementing the [inputValue] function.
-    initialize_lean_environment();
     unsafe {
+        initialize_lean_environment(globals::initialize);
+
         insert_to_hashtbl(3, String::from("Hello, World!"));
         let res = globals::query(3, lean_io_mk_world());
         cleanup_lean_io(res);
