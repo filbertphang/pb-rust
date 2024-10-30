@@ -21,3 +21,11 @@ lean_lib Arrays where
 @[default_target]
 lean_lib Structs where
   defaultFacets := #[LeanLib.sharedFacet]
+
+@[default_target]
+lean_lib ReliableBroadcast where
+  defaultFacets := #[LeanLib.sharedFacet]
+
+@[default_target]
+lean_lib Protocol where
+  defaultFacets := #[LeanLib.sharedFacet]
