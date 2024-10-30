@@ -1,4 +1,4 @@
-use crate::ffitest::helpers::*;
+use crate::ffitest::lean_helpers::*;
 use lean_sys::*;
 
 mod simple {

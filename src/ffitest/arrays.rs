@@ -1,4 +1,4 @@
-use crate::ffitest::helpers::*;
+use crate::ffitest::lean_helpers::*;
 use lean_sys::*;
 
 // testing involving array interfacing between lean and rust.

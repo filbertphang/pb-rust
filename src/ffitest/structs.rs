@@ -1,6 +1,6 @@
 use std::ffi::{c_uint, c_void};
 
-use crate::ffitest::helpers::*;
+use crate::ffitest::lean_helpers::*;
 use lean_sys::*;
 
 mod structs {

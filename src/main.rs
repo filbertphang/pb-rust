@@ -10,7 +10,7 @@ mod networktest {
 mod ffitest {
     pub mod arrays;
     pub mod globals;
-    mod helpers;
+    pub mod lean_helpers;
     pub mod simple;
     pub mod structs;
 }
