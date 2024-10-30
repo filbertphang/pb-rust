@@ -4,6 +4,8 @@ mod networktest {
     pub mod libp2p_mdns;
     pub mod libp2p_mdns_ping;
     pub mod libp2p_mdns_request_response;
+    pub mod libp2p_rb;
+    mod rb_protocol;
     pub mod tcp;
 }
 
@@ -20,6 +22,7 @@ fn main() {
         "m" => networktest::libp2p_mdns::main().unwrap(),
         "mp" => networktest::libp2p_mdns_ping::main().unwrap(),
         "mrr" => networktest::libp2p_mdns_request_response::main().unwrap(),
+        "rb" => networktest::libp2p_rb::main().unwrap(),
         "ffis" => {
             let module = args().nth(2).unwrap();
             ffitest::simple::main(module.as_str());
