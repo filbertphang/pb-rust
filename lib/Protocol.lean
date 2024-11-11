@@ -24,7 +24,7 @@ namespace ConcreteRB
   -- function that calls rust to determine what the leader node's message payload is.
   -- we expect this to always be called "get_node_value"
   @[extern "get_node_value"]
-  opaque get_node_value : ConcreteAddress ΓåÆ ConcreteValue
+  opaque get_node_value : ConcreteAddress → ConcreteValue
 
   -- function that creates a protocol in lean
   -- rust expects this to always be called "create_protocol"
@@ -34,6 +34,18 @@ namespace ConcreteRB
     -- note: we still have to hard-code String.decEq and USize.decEq here.
     -- would be good if we could derive DecideableEq on our abbrevs, so we can use decEq from the abbrev type directly.
     @RBProtocol ConcreteAddress ConcreteRound ConcreteValue String.decEq USize.decEq String.decEq (node_list) (get_node_value)
+
+  @[export create_message]
+  def create_message (tag: USize) (originator: ConcreteAddress) (r: ConcreteRound) (v: ConcreteValue)  : ConcreteRBMessage :=
+    -- for some reason, i can't seem to match on USize directly,
+    -- so we cast the tag to Nat first.
+    -- this just saves us the trouble of constructing the lean object in rust.
+    let tag' := USize.toNat tag;
+    match tag' with
+    | 0 => Message.InitialMsg r v
+    | 1 => Message.EchoMsg originator r v
+    | 2 => Message.VoteMsg originator r v
+    | _ => sorry
 
   @[export create_packet]
   def create_packet (src: ConcreteAddress) (dst: ConcreteAddress) (msg: ConcreteRBMessage) (consumed: Bool) : ConcreteRBPacket :=

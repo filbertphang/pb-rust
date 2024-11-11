@@ -42,6 +42,12 @@ pub mod lean {
             msg: lean_sys::lean_obj_arg,
             consumed: u8,
         ) -> lean_sys::lean_obj_res;
+        fn create_message(
+            tag: usize,
+            originator: lean_sys::lean_obj_arg,
+            r: usize,
+            v: lean_sys::lean_obj_arg,
+        ) -> lean_sys::lean_obj_res;
         fn init_node_state(
             p: lean_sys::lean_obj_arg,
             node_address: lean_sys::lean_obj_arg,
@@ -125,7 +131,40 @@ pub mod lean {
 
         // Takes ownership of the Rust Message.
         pub unsafe fn to_lean(self) -> *mut lean_object {
-            panic!("nyi")
+            let tag: usize;
+            let originator_r: String;
+            let r_r: usize;
+            let v_r: String;
+
+            match self {
+                Self::InitialMsg { r, v } => {
+                    tag = 0;
+                    // hacky way to include this.
+                    // will not be used on the Lean side.
+                    originator_r = String::new();
+                    r_r = r;
+                    v_r = v;
+                }
+                Self::EchoMsg { originator, r, v } => {
+                    tag = 1;
+                    originator_r = originator;
+                    r_r = r;
+                    v_r = v;
+                }
+                Self::VoteMsg { originator, r, v } => {
+                    tag = 2;
+                    originator_r = originator;
+                    r_r = r;
+                    v_r = v;
+                }
+            };
+
+            create_message(
+                tag,
+                rust_string_to_lean(originator_r),
+                r_r,
+                rust_string_to_lean(v_r),
+            )
         }
     }
 
@@ -176,7 +215,12 @@ pub mod lean {
 
         // Takes ownership of the rust packet.
         pub unsafe fn to_lean(self) -> *mut lean_object {
-            panic!("nyi")
+            create_packet(
+                rust_string_to_lean(self.src),
+                rust_string_to_lean(self.dst),
+                Message::to_lean(self.msg),
+                self.consumed as u8,
+            )
         }
     }
 
