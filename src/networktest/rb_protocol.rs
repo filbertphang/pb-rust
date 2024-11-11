@@ -55,7 +55,7 @@ pub mod lean {
         fn send_message(
             p: lean_sys::lean_obj_arg,
             node_state: lean_sys::lean_obj_arg,
-            round: lean_sys::lean_obj_arg,
+            round: usize,
         ) -> lean_sys::lean_obj_res;
         fn handle_message(
             p: lean_sys::lean_obj_arg,
@@ -227,7 +227,7 @@ pub mod lean {
     pub struct Protocol {
         protocol: *mut lean_object,
         node_state: *mut lean_object,
-        round: *mut lean_object,
+        round: usize,
     }
 
     impl Protocol {
@@ -253,7 +253,7 @@ pub mod lean {
                 .expect("should be able to init global hashtbl");
 
             // initialize round to 0
-            let round = lean_usize_to_nat(0);
+            let round = 0;
 
             Protocol {
                 protocol,
@@ -302,13 +302,15 @@ pub mod lean {
 
             // increment round
             // note: this is maintained per-node for now, but eventually we may want some way
-            // to broadcast the fact that we're starting a new round to all nodes?
-            self.round = lean_nat_succ(self.round);
+            // to broadcast the fact that we're starting a new round to all nodes.
+            self.round += 1;
 
             packets_to_send
         }
 
-        // pub unsafe fn handle_packet
+        pub unsafe fn handle_packet(&mut self, address: String, packet: Packet) -> Vec<Packet> {
+            panic!()
+        }
     }
 }
 
