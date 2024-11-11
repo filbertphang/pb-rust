@@ -15,3 +15,9 @@ the poorly-named `networktest` module consists of 3 examples, in increasing comp
 
 to run, execute `cargo run -- <example>`.
 e.g. `cargo run -- mrr` to execute the `libp2p_mdns_request_response` example.
+
+### reliable broadcast
+
+its not working and it wont build yet until i figure out how to export the `lean-sts` dependency. wip
+
+to get it to work just comment out the entire `rb_protocol.rs` and `libp2p_rb.rs` file and it should build fine, since those are the only parts that (implicitly) depend on lean-sts
