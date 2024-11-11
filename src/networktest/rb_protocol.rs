@@ -262,26 +262,25 @@ pub mod lean {
             }
         }
 
-        pub unsafe fn send_message(&mut self, address: String, message: String) -> Vec<Packet> {
-            // update the message db with the current message
-            let mut ht = GLOBAL_MESSAGE_HASHTBL
-                .get()
-                .expect("expected global message db to be initialized")
-                .lock()
-                .unwrap();
-            ht.insert(address, message);
+        // this function takes ownership of `state_and_packets`, and returns ownership of
+        // the new state and packet vector.
+        unsafe fn deconstruct_state_and_packets(
+            state_and_packets: *mut lean_object,
+        ) -> (*mut lean_object, Vec<Packet>) {
+            // note to self: investigate this part if anything goes wrong at runtime.
 
-            // send the InitialMessage
-            let state_and_packets = send_message(self.protocol, self.node_state, self.round);
+            // TODO: figure out the borrowing/ownership semantics here.
+            // `state_and_packets` is a lean tuple. if i `lean_dec` the tuple, does
+            // its fields get destructed too?
+            //
+            // i'm guessing that the tuple (product type) uses references to its contents,
+            // so we can safely decrement its refcount without affecting its fields.
+            // we're probably leaking memory all over the place, but we can worry about that later.
 
             // deconstruct new protocol state
             assert!(lean_is_ctor(state_and_packets));
             assert!(lean_ctor_num_objs(state_and_packets) == 2);
             let new_state = lean_ctor_get(state_and_packets, 0);
-
-            // update local state
-            lean_dec(self.node_state);
-            self.node_state = new_state;
 
             // deconstruct lean packets into rust
             let packets_arr_lean = lean_ctor_get(state_and_packets, 1);
@@ -294,11 +293,48 @@ pub mod lean {
                 let packet_lean = lean_array_uget(packets_arr_lean, i); // borrow the lean packet
 
                 // unmarshall the packet into rust and send it over the network.
+                // TODO: check if i actually have to send it over the network
                 let packet_rust = Packet::from_lean(packet_lean);
                 packets_to_send.push(packet_rust);
 
                 lean_dec(packet_lean); // return the lean packet.
             }
+
+            // TODO: investigate the reference counting semantics
+            // i think we might not actually have to decrement rc of the packet array,
+            // because `lean_ctor_get` doesn't seem to increase the reference count?
+            // not sure why, either.
+
+            // incrementing refcount of `new_state`, just to be safe?
+            // i think we have to do this, since `lean_ctor_get` doesn't seem to increment it.
+            // we don't want `new_state` to be freed when the result tuple gets freed.
+            lean_inc(new_state);
+
+            // decrement refcount of the packet array and the result tuple
+            lean_dec(packets_arr_lean);
+            lean_dec(state_and_packets);
+
+            (new_state, packets_to_send)
+        }
+
+        pub unsafe fn send_message(&mut self, address: String, message: String) -> Vec<Packet> {
+            // update the message db with the current message
+            let mut ht = GLOBAL_MESSAGE_HASHTBL
+                .get()
+                .expect("expected global message db to be initialized")
+                .lock()
+                .unwrap();
+            ht.insert(address, message);
+
+            // send the InitialMessage
+            let state_and_packets = send_message(self.protocol, self.node_state, self.round);
+
+            let (new_state, packets_to_send) =
+                Self::deconstruct_state_and_packets(state_and_packets);
+
+            // update node state
+            lean_dec(self.node_state);
+            self.node_state = new_state;
 
             // increment round
             // note: this is maintained per-node for now, but eventually we may want some way
@@ -308,8 +344,20 @@ pub mod lean {
             packets_to_send
         }
 
-        pub unsafe fn handle_packet(&mut self, address: String, packet: Packet) -> Vec<Packet> {
-            panic!()
+        pub unsafe fn handle_packet(&mut self, packet: Packet) -> Vec<Packet> {
+            let src_lean = rust_string_to_lean(packet.src);
+            let msg_lean = Message::to_lean(packet.msg);
+            let state_and_packets =
+                handle_message(self.protocol, self.node_state, src_lean, msg_lean);
+
+            let (new_state, packets_to_send) =
+                Self::deconstruct_state_and_packets(state_and_packets);
+
+            // update node state
+            lean_dec(self.node_state);
+            self.node_state = new_state;
+
+            packets_to_send
         }
     }
 }
