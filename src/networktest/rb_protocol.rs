@@ -214,7 +214,9 @@ pub mod lean {
         }
 
         // Takes ownership of the rust packet.
-        pub unsafe fn to_lean(self) -> *mut lean_object {
+        // note: doesn't seem like this is needed, since we can just convert the
+        // message directly?
+        pub unsafe fn _to_lean(self) -> *mut lean_object {
             create_packet(
                 rust_string_to_lean(self.src),
                 rust_string_to_lean(self.dst),

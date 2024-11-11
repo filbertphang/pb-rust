@@ -2,14 +2,16 @@ use crate::ffitest::lean_helpers;
 use crate::networktest::rb_protocol;
 use futures::prelude::*;
 use libp2p::identity::Keypair;
-use libp2p::request_response::{ProtocolSupport, RequestId, ResponseChannel};
+use libp2p::request_response::{ProtocolSupport, ResponseChannel};
 use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
 use libp2p::{mdns, request_response, PeerId, StreamProtocol, Swarm};
 use std::error::Error;
-use std::fmt::Display;
+use std::str::FromStr;
 use std::time::Duration;
 use tokio::{io, io::AsyncBufReadExt, select};
 use tracing_subscriber::EnvFilter;
+
+use super::rb_protocol::{RBRequest, RBResponse};
 
 fn truncate_peer_id(peer_id: &PeerId) -> String {
     let peer_id_string_ = peer_id.to_string();
@@ -22,11 +24,12 @@ fn truncate_peer_id(peer_id: &PeerId) -> String {
 // - mdns behaviour for peer discovery
 // - request_response behaviour for sending messages
 //   - cbor as serialization mechanism
-//   - <MyRequestType, MyResponseType> as the request and response type respectively
+//   - <RBRequest, RBResponse> as the request and response type respectively
 #[derive(NetworkBehaviour)]
 struct RequestResponseMDNSBehaviour {
     mdns: mdns::tokio::Behaviour,
-    request_response: request_response::cbor::Behaviour<MyRequestType, MyResponseType>,
+    request_response:
+        request_response::cbor::Behaviour<rb_protocol::RBRequest, rb_protocol::RBResponse>,
 }
 
 impl RequestResponseMDNSBehaviour {
@@ -39,82 +42,102 @@ impl RequestResponseMDNSBehaviour {
         };
         Self {
             mdns: mdns::tokio::Behaviour::new(mdns_config, local_peer_id).unwrap(),
-            request_response:
-                request_response::cbor::Behaviour::<MyRequestType, MyResponseType>::new(
-                    [(
-                        StreamProtocol::new("/verse-lab/mdns-request-response-test/1"),
-                        ProtocolSupport::Full,
-                    )],
-                    request_response::Config::default(),
-                ),
+            request_response: request_response::cbor::Behaviour::<RBRequest, RBResponse>::new(
+                [(
+                    StreamProtocol::new("/verse-lab/reliable-broadcast/1"),
+                    ProtocolSupport::Full,
+                )],
+                request_response::Config::default(),
+            ),
         }
     }
 }
 
 // request and response handlers
-fn send_request(swarm: &mut Swarm<RequestResponseMDNSBehaviour>, peer_id: &PeerId, msg: String) {
-    let request = MyRequestType { msg };
+fn send_packet(swarm: &mut Swarm<RequestResponseMDNSBehaviour>, packet: rb_protocol::lean::Packet) {
     // note: `request_response::send_request` will automatically dial a peer
     // to send a message to them, if we don't yet have an active connection to them.
+    let dst_id =
+        PeerId::from_str(packet.dst.as_str()).expect("expected well-formed destination address");
     swarm
         .behaviour_mut()
         .request_response
-        .send_request(peer_id, request);
+        .send_request(&dst_id, RBRequest { packet });
 }
 
 fn handle_request(
     swarm: &mut Swarm<RequestResponseMDNSBehaviour>,
-    peer_id: &PeerId,
-    request_id: &RequestId,
-    request: &MyRequestType,
-    channel: ResponseChannel<MyResponseType>,
-) -> Result<(), MyResponseType> {
-    // in PB, this is where we would read a packet, update the state, and determine
-    // what packets to return.
-    // we would likely be calling lean functions here.
-    let truncated_peer_id = truncate_peer_id(peer_id);
-    println!("{truncated_peer_id} @ {request_id}: {request}");
-    let response = MyResponseType {
-        msg: format!("acknowledged message with request_id {request_id}"),
-    };
+    request: RBRequest,
+    channel: ResponseChannel<RBResponse>,
+    protocol: &mut rb_protocol::lean::Protocol,
+) {
+    // acknowledge the packet
+    let response = RBResponse::Ack;
     swarm
         .behaviour_mut()
         .request_response
         .send_response(channel, response)
+        .expect("should be able to ack a request");
+
+    // generate new packets to send, and broadcast them
+    let packets_to_send = unsafe { protocol.handle_packet(request.packet) };
+
+    packets_to_send
+        .into_iter()
+        .for_each(|packet| send_packet(swarm, packet));
 }
 
-fn handle_response(peer_id: &PeerId, response: &MyResponseType) {
+fn handle_response(peer_id: &PeerId, response: &rb_protocol::RBResponse) {
     // in PB, this is where we would update the partial signature and generate a combined signature.
     // we would likely also be calling lean functions here.
     let truncated_peer_id = truncate_peer_id(peer_id);
     println!("{truncated_peer_id}: {response}");
 }
 
+// stdin is used for 2 different things.
+// 1) if the protocol hasn't yet been initialized, sending "init" will be used to
+// initialize the protocol using a snapshot of the current network state
+// (i.e., create a protocol with all current nodes in the network)
+//
+// 2) if the protocol has been initialized, sending any message (including "init")
+// will cause us to send that message to all other nodes using the given protocol.
 fn handle_stdin(
     swarm: &mut Swarm<RequestResponseMDNSBehaviour>,
     line: &str,
+    // a mutable reference might not be correct here.
+    // may want to do something like a Box<T>? not sure
     protocol: &mut Option<rb_protocol::lean::Protocol>,
 ) {
-    match (protocol_initialized, line) {
+    let my_address = swarm.local_peer_id().to_string();
+    match (&protocol, line) {
         (None, "init") => {
             // initialize lean & protocol
             unsafe {
                 lean_helpers::initialize_lean_environment(rb_protocol::lean::initialize);
 
-                let all_peers: Vec<String> = swarm
-                    .connected_peers()
-                    .cloned()
-                    .map(truncate_peer_id)
-                    .collect();
-                let my_address = truncate_peer_id(swarm.local_peer_id());
+                let all_peers: Vec<String> =
+                    swarm.connected_peers().map(PeerId::to_string).collect();
                 let new_protocol = rb_protocol::lean::Protocol::create(all_peers, my_address);
 
                 protocol.replace(new_protocol);
             }
-            panic!("initialize")
         }
-        (Some(protocol), msg) => {
-            panic!("broadcast")
+        (None, _) => {
+            // do nothing. before the protocol is initialized, we only accept the "init" command.
+        }
+        (Some(_), message) => {
+            // generates packets to send from lean,
+            let packets_to_send = unsafe {
+                protocol
+                    .as_mut()
+                    .unwrap()
+                    .send_message(my_address, String::from(message))
+            };
+
+            // ..., then send them via libp2p.
+            packets_to_send
+                .into_iter()
+                .for_each(|packet| send_packet(swarm, packet));
         }
     }
 }
@@ -148,14 +171,11 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let mut stdin = io::BufReader::new(io::stdin()).lines();
 
     // reliable broadcast protocol
+    // TODO: maybe replace this option with a OnceCell?
     let mut protocol = None;
 
     loop {
         select! {
-            // read a message from stdin, and send it to all connected peers
-            // use this to simulate a distributed system deciding to broadcast a message
-            // to all nodes
-            // adapted from `chat`: https://github.com/libp2p/rust-libp2p/tree/master/examples/chat
             Ok(Some(line)) = stdin.next_line() => {
               handle_stdin(&mut swarm, &line, &mut protocol);
             }
@@ -186,16 +206,16 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
                 // Request-Response: received a request
                 SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::RequestResponse(
                     request_response::Event::Message {
-                        peer,
                         message:
                             request_response::Message::Request {
-                                request_id,
                                 request,
                                 channel,
+                                ..
                             },
+                            ..
                     },
                 )) => {
-                    handle_request(&mut swarm, &peer, &request_id, &request, channel)?;
+                    handle_request(&mut swarm,  request, channel, protocol.as_mut().expect("protocol should be initialized"));
                 }
                 // Request-Response: received a response
                 SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::RequestResponse(
