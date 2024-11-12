@@ -113,13 +113,15 @@ fn handle_stdin(
         (None, "init") => {
             // initialize lean & protocol
             unsafe {
-                lean_helpers::initialize_lean_environment(rb_protocol::lean::initialize);
+                lean_helpers::initialize_lean_environment(rb_protocol::lean::initialize_Protocol);
 
                 let all_peers: Vec<String> =
                     swarm.connected_peers().map(PeerId::to_string).collect();
                 let new_protocol = rb_protocol::lean::Protocol::create(all_peers, my_address);
 
                 protocol.replace(new_protocol);
+
+                println!(">> initialized!")
             }
         }
         (None, _) => {

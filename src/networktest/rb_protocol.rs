@@ -3,6 +3,12 @@ use lean_sys::*;
 use once_cell::sync::OnceCell;
 use std::{collections::HashMap, error::Error, fmt::Display, sync::Mutex};
 
+// TODO: an alternative implementation for the global message hashtable would be to store global state
+// either in the IO Monad or some form of State monad (StateM).
+// the benefit of this is that state lives exactly in one place (NodeState) as opposed to being split across
+// the NodeState and the global state on the Rust side, at the cost of additional hassle of working with monads.
+// i should investigate this in the future.
+//
 // maps from Address (String) -> Message (String)
 static GLOBAL_MESSAGE_HASHTBL: OnceCell<Mutex<HashMap<String, String>>> = OnceCell::new();
 
@@ -29,11 +35,17 @@ pub mod lean {
 
     use super::GLOBAL_MESSAGE_HASHTBL;
 
-    #[link(name = "Protocol")]
+    // note: we link with `ProtocolFat`, not `Protocol`.
+    // this is because `Protocol.lean` has several additional dependencies that we need to link with,
+    // so we export it as a "Fat" static library.
+    // see `lib/lakefile.lean` for more info.
+    #[link(name = "ProtocolFat", kind = "static")]
     extern "C" {
         // https://doc.rust-lang.org/reference/items/external-blocks.html#the-link_name-attribute
-        #[link_name = "initialize_Protocol"]
-        pub fn initialize(builtin: u8, world: lean_sys::lean_obj_arg) -> lean_sys::lean_obj_res;
+        pub fn initialize_Protocol(
+            builtin: u8,
+            world: lean_sys::lean_obj_arg,
+        ) -> lean_sys::lean_obj_res;
 
         fn create_protocol(node_arr: lean_sys::lean_obj_arg) -> lean_sys::lean_obj_res;
         fn create_packet(
