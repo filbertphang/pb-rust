@@ -10,6 +10,7 @@ use lean_sys::*;
 // than it is to construct a lean List here in rust.
 
 mod arrays {
+
     #[link(name = "Arrays")]
     extern "C" {
         // https://doc.rust-lang.org/reference/items/external-blocks.html#the-link_name-attribute
@@ -18,6 +19,11 @@ mod arrays {
 
         pub fn create_array(x: u32, y: u32) -> lean_sys::lean_obj_res;
         pub fn print_array(
+            xs: lean_sys::lean_obj_arg,
+            world: lean_sys::lean_obj_arg,
+        ) -> lean_sys::lean_obj_res;
+        pub fn return_string_array() -> lean_sys::lean_obj_res;
+        pub fn print_string_array(
             xs: lean_sys::lean_obj_arg,
             world: lean_sys::lean_obj_arg,
         ) -> lean_sys::lean_obj_res;
@@ -50,6 +56,27 @@ unsafe fn test_print_array() {
     cleanup_lean_io(res);
 }
 
+unsafe fn test_strings() {
+    println!("=== lean arrays to rust ===");
+    let arr = arrays::return_string_array();
+    let isarr = lean_is_array(arr);
+    println!("is array: {isarr}");
+
+    let boxed_elem = lean_array_uget(arr, 0);
+    let ax = lean_string_to_rust(boxed_elem);
+    println!("first elem: {ax}");
+
+    let boxed_elem2 = lean_array_uget(arr, 1);
+    let bx = lean_string_to_rust(boxed_elem2);
+    println!("snd elem: {bx}");
+
+    println!("=== rust arrays to lean ===");
+    let x = vec![String::from("goodbye"), String::from("world")];
+    let z = rust_string_vec_to_lean_array(x);
+    let r = arrays::print_string_array(z, lean_io_mk_world());
+    cleanup_lean_io(r);
+}
+
 pub fn main(module: &str) {
     unsafe {
         initialize_lean_environment(arrays::initialize);
@@ -57,6 +84,7 @@ pub fn main(module: &str) {
         match module {
             "cr" => test_create_array(),
             "prn" => test_print_array(),
+            "str" => test_strings(),
             _ => panic!("invalid ffitest::simple test!"),
         }
     };

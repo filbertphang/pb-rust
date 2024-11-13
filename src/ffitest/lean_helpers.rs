@@ -42,6 +42,9 @@ pub unsafe fn index_lean_array(arr: *mut lean_object, idx: usize) -> usize {
 }
 
 pub unsafe fn rust_usize_vec_to_lean_array(vec: Vec<usize>) -> *mut lean_object {
+    // this is for creating lean arrays of primitives (USize, UInt_32, etc).
+    // for lean arrays of non-primitives, see impl in `rust_string_vec_to_lean_array` below.
+
     // this is fairly inefficient, because we do an O(n) loop to copy each array element
     // to lean array, only to do another O(n) conversion from lean Array to lean List.
     //
@@ -53,6 +56,19 @@ pub unsafe fn rust_usize_vec_to_lean_array(vec: Vec<usize>) -> *mut lean_object 
     let arr = lean_mk_empty_array_with_capacity(lean_box(vec_len));
     for elem in vec {
         lean_array_push(arr, lean_box(elem));
+    }
+    arr
+}
+
+pub unsafe fn rust_string_vec_to_lean_array(vec: Vec<String>) -> *mut lean_object {
+    // specialized for strings.
+    // but this approach should work for any lean Array T type where T is
+    // represented as a lean_object instead of a primitive.
+    let vec_len = vec.len();
+    let arr = lean_mk_empty_array_with_capacity(lean_box(vec_len));
+    for elem in vec {
+        let lean_str = rust_string_to_lean(elem);
+        lean_array_push(arr, lean_str);
     }
     arr
 }

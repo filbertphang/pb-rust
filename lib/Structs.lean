@@ -42,3 +42,16 @@ inductive CompoundMessage
 @[export return_compound_msg]
 def return_compound_msg (o: String) (r: Nat) (v: String) : CompoundMessage :=
   CompoundMessage.ActualMessage 17 {originator := o, round := r, value := v}
+
+structure WithFunction :=
+  f: String → String
+
+def my_f (s: String) : String := s!"i have added to {s}"
+
+@[export get_struct_with_function]
+def get_struct_with_function (_: Unit) : WithFunction :=
+  {f := my_f}
+
+@[export call_struct_with_function]
+def call_struct_with_function (wf : WithFunction) : IO Unit :=
+  IO.println s!"Hello from lean: {wf.f "oops"}"

@@ -25,6 +25,12 @@ mod structs {
             r: lean_sys::lean_obj_arg,
             v: lean_sys::lean_obj_arg,
         ) -> lean_sys::lean_obj_res;
+
+        pub fn get_struct_with_function() -> lean_sys::lean_obj_res;
+        pub fn call_struct_with_function(
+            wf: lean_sys::lean_obj_arg,
+            world: lean_sys::lean_obj_arg,
+        ) -> lean_sys::lean_obj_res;
     }
 }
 
@@ -94,6 +100,15 @@ unsafe fn test_compounds() {
     println!("Address: {oo}, Round: {rr}, Value: {vv}");
 }
 
+unsafe fn test_functions() {
+    // this case tests whether we can pass around structs with functions.
+    //
+    // verdict: yes they can.
+    let s = structs::get_struct_with_function();
+    let res = structs::call_struct_with_function(s, lean_io_mk_world());
+    cleanup_lean_io(res);
+}
+
 pub fn main(module: &str) {
     unsafe {
         initialize_lean_environment(structs::initialize);
@@ -102,6 +117,7 @@ pub fn main(module: &str) {
             "strs" => test_structures(),
             "inds" => test_inductives(),
             "cpds" => test_compounds(),
+            "fns" => test_functions(),
             _ => panic!("invalid ffitest::simple test!"),
         }
     };

@@ -53,6 +53,25 @@ unsafe fn test_back_and_forth_with_lean() {
     cleanup_lean_io(res);
 }
 
+unsafe fn double_call() {
+    // this testcase checks whether lean functions take ownership of their arguments,
+    // and drop it from memory after a function call.
+    //
+    // verdict: they don't. you can re-use variables across multiple calls.
+    let x = String::from("me");
+
+    let lean_s = simple::return_hello(rust_string_to_lean(x));
+
+    let lean_s1 = simple::return_hello(lean_s);
+    let lean_s2 = simple::return_hello(lean_s);
+
+    let lean_s11 = lean_string_to_rust(lean_s1);
+    let lean_s21 = lean_string_to_rust(lean_s2);
+
+    println!("{lean_s11}");
+    println!("{lean_s21}");
+}
+
 pub fn main(module: &str) {
     unsafe {
         initialize_lean_environment(simple::initialize);
@@ -61,6 +80,7 @@ pub fn main(module: &str) {
             "ret" => test_return_from_lean(),
             "pr" => test_print_from_lean(),
             "baf" => test_back_and_forth_with_lean(),
+            "dc" => double_call(),
             _ => panic!("invalid ffitest::simple test!"),
         }
     };
