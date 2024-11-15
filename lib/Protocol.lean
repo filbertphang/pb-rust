@@ -8,10 +8,11 @@ import ReliableBroadcast
 -- between Lean and Rust.
 
 -- concrete address, round, and value parameters
--- (using "abbrev" instead of "def" for reducibility, i want ConcreteValue to have the properties of String.)
-abbrev ConcreteAddress := String
-abbrev ConcreteRound := USize
-abbrev ConcreteValue := String
+-- (i want ConcreteValue to have the properties of String, hence we want a reducible def.
+-- seems like it does the same thing as `abbrev`.)
+@[reducible] def ConcreteAddress := String
+@[reducible] def ConcreteRound := USize
+@[reducible] def ConcreteValue := String
 
 -- concrete instantiations of the RB
 abbrev ConcreteRBMessage := (@Message ConcreteAddress ConcreteRound ConcreteValue)

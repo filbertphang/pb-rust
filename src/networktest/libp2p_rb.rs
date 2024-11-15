@@ -59,6 +59,9 @@ fn send_packet(swarm: &mut Swarm<RequestResponseMDNSBehaviour>, packet: rb_proto
     // to send a message to them, if we don't yet have an active connection to them.
     let dst_id =
         PeerId::from_str(packet.dst.as_str()).expect("expected well-formed destination address");
+
+    println!("sending packet:");
+    dbg!(&packet);
     swarm
         .behaviour_mut()
         .request_response
@@ -79,6 +82,8 @@ fn handle_request(
         .send_response(channel, response)
         .expect("should be able to ack a request");
 
+    println!("received request:");
+    dbg!(&request.packet);
     // generate new packets to send, and broadcast them
     let packets_to_send = unsafe { protocol.handle_packet(request.packet) };
 
@@ -117,6 +122,9 @@ fn handle_stdin(
 
                 let all_peers: Vec<String> =
                     swarm.connected_peers().map(PeerId::to_string).collect();
+                // TODO: settle the self-dial thing
+                // all_peers.push(my_address.clone());
+                dbg!(&all_peers);
                 let new_protocol = rb_protocol::lean::Protocol::create(all_peers, my_address);
 
                 protocol.replace(new_protocol);
@@ -126,17 +134,19 @@ fn handle_stdin(
         }
         (None, _) => {
             // do nothing. before the protocol is initialized, we only accept the "init" command.
+            println!(">> not yet initialized. run the 'init' command first!")
         }
         (Some(_), message) => {
             // generates packets to send from lean,
             let packets_to_send = unsafe {
-                protocol
-                    .as_mut()
-                    .unwrap()
-                    .send_message(my_address, String::from(message))
+                let p = protocol.as_mut().unwrap();
+                dbg!(&p);
+
+                p.send_message(my_address, String::from(message))
             };
 
             // ..., then send them via libp2p.
+            println!("[libp2p_rb::handle_stdin] sending packets");
             packets_to_send
                 .into_iter()
                 .for_each(|packet| send_packet(swarm, packet));
@@ -197,6 +207,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
                 // MDNS: peer expired
+                // TODO: determine what happens to the protocol when a peer expires and re-connects.
                 SwarmEvent::Behaviour(RequestResponseMDNSBehaviourEvent::Mdns(
                     mdns::Event::Expired(list),
                 )) => {

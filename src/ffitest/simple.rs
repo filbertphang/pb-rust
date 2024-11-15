@@ -10,6 +10,8 @@ mod simple {
         pub fn return_hello(s: lean_sys::lean_obj_arg) -> lean_sys::lean_obj_res;
         pub fn print_hello(world: lean_sys::lean_obj_arg) -> lean_sys::lean_obj_res;
         pub fn back_and_forth(world: lean_sys::lean_obj_arg) -> lean_sys::lean_obj_res;
+        pub fn return_mystr1() -> lean_sys::lean_obj_res;
+        pub fn return_mystr2() -> lean_sys::lean_obj_res;
     }
 }
 
@@ -53,7 +55,7 @@ unsafe fn test_back_and_forth_with_lean() {
     cleanup_lean_io(res);
 }
 
-unsafe fn double_call() {
+unsafe fn test_double_call() {
     // this testcase checks whether lean functions take ownership of their arguments,
     // and drop it from memory after a function call.
     //
@@ -72,6 +74,21 @@ unsafe fn double_call() {
     println!("{lean_s21}");
 }
 
+unsafe fn test_alias() {
+    // this testcase checks whether constructs like `abbrev` and `@[reducible] def` on Strings
+    // are also treated like strings.
+    //
+    // verdict: yes, but it seems like parameterized types are boxed.
+    // will require further investigation
+    let mystr1 = simple::return_mystr1();
+    println!("is mystring1 a string? {}", lean_is_string(mystr1));
+    println!("is mystring1 a ref? {}", lean_is_ref(mystr1));
+
+    let mystr2 = simple::return_mystr2();
+    println!("is mystring2 a string? {}", lean_is_string(mystr2));
+    println!("is mystring2 a ref? {}", lean_is_ref(mystr2));
+}
+
 pub fn main(module: &str) {
     unsafe {
         initialize_lean_environment(simple::initialize);
@@ -80,7 +97,8 @@ pub fn main(module: &str) {
             "ret" => test_return_from_lean(),
             "pr" => test_print_from_lean(),
             "baf" => test_back_and_forth_with_lean(),
-            "dc" => double_call(),
+            "dc" => test_double_call(),
+            "al" => test_alias(),
             _ => panic!("invalid ffitest::simple test!"),
         }
     };

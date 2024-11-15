@@ -4,6 +4,17 @@ import LeanSts.BFT.Network
 -- https://github.com/verse-lab/verify-ABC-in-Coq/blob/main/Protocols/RB/Protocol.v
 -- https://decentralizedthoughts.github.io/2020-09-19-living-with-asynchrony-brachas-reliable-broadcast/
 
+-- set_option trace.compiler.ir.rc true
+
+-- debug function to help me print stuff from lean without going through the IO monad
+-- very illegal, but it gets the job done.
+@[extern "dbg_print_rust"]
+opaque dbg_print_rust : String → USize
+
+def dbg_print' {T : Type} (tu : T × String) : T :=
+  let tu' := tu.map id dbg_print_rust
+  tu'.fst
+
 section ReliableBroadcast
 variable {Address Round Value : Type}
 variable [dec_addr : DecidableEq Address] [dec_round : DecidableEq Round] [dec_value : DecidableEq Value]
@@ -119,9 +130,14 @@ def checkVoteCondition (st : RBState) (msg : RBMessage) : Bool :=
   | _ => false
 
 def updateVotedByMessage (st : RBState) (msg : RBMessage) : RBState × List RBPacket :=
+  let msg := dbg_print' (msg, s!"updateVotedByMessage: called")
   match msg with
   | Message.EchoMsg q r v | Message.VoteMsg q r v =>
-    ({st with voted := st.voted[(q, r) ↦ some v]}, Packet.broadcast st.id st.allNodes (Message.VoteMsg q r v))
+    let next_vtd := st.voted[(q, r) ↦ some v]
+    let next_st := {st with voted := next_vtd}
+    let next_st := dbg_print' (next_st, "updateVotedByMessage: done")
+    let pkts := Packet.broadcast st.id st.allNodes (Message.VoteMsg q r v)
+    (next_st, pkts)
   | _ => (st, [])
 
 def tryUpdateOutputByMessage (st : RBState) (msg : RBMessage) : RBState :=
@@ -134,13 +150,15 @@ def tryUpdateOutputByMessage (st : RBState) (msg : RBMessage) : RBState :=
   else
     st
 
+
 def routineCheck (st : RBState) (msg : RBMessage) : RBState × List RBPacket :=
   -- let (st', pkts) := if checkVoteCondition st msg then updateVotedByMessage st msg else (st, [])
   -- let st'' := tryUpdateOutputByMessage st' msg
   -- (st'', pkts)
-
   -- Need to make the if be the outermost thing?
-  if checkVoteCondition st msg then
+  let vc := checkVoteCondition st msg
+  if vc then
+    let st := dbg_print' (st, s!"(routineCheck): if case")
     let (st', pkts) := updateVotedByMessage st msg
     let st'' := tryUpdateOutputByMessage st' msg
     (st'', pkts)
@@ -153,11 +171,15 @@ def procMsg (st : @NodeState Address Round Value) (src : Address) (msg : @Messag
   match handleMessage st src msg with
   | some (st', pkts) =>
     match msg with
-    | Message.InitialMsg _ _ => (st', pkts)
+    | Message.InitialMsg _ _ =>
+      (st', pkts)
     | _ =>
+      let st' := dbg_print' (st', s!"(procMsg): calling routinecheck")
       let (st'', pkts') := routineCheck st' msg
-      (st'', pkts ++ pkts')
-  | none => (st, [])
+      let pp := dbg_print' (pkts ++ pkts', s!"returned from routinecheck")
+      (st'', pp)
+  | none =>
+      (st, [])
 
 instance RBProtocol (nodes : List Address) (inputValue : Address → Value) :
   @NetworkProtocol Address (@Message Address Round Value) (@NodeState Address Round Value) (@InternalTransition Round) :=
