@@ -14,22 +14,22 @@ static GLOBAL_MESSAGE_HASHTBL: OnceCell<Mutex<HashMap<String, String>>> = OnceCe
 
 #[no_mangle]
 pub unsafe extern "C" fn get_node_value(node_address: *mut lean_object) -> *mut lean_object {
-    println!("[rb_protocol::get_node_value] (extern) called");
+    // println!("[rb_protocol::get_node_value] (extern) called");
     let ht = GLOBAL_MESSAGE_HASHTBL
         .get()
         .expect("global message hashtbl should be initialized")
         .lock()
         .unwrap();
-    println!("[rb_protocol::get_node_value] (extern) global hashtbl acquired");
+    // println!("[rb_protocol::get_node_value] (extern) global hashtbl acquired");
     let node_address_rust = lean_helpers::lean_string_to_rust(node_address, Mode::Owned);
     let message_rust = ht
         .get(&node_address_rust)
         .expect("node should always have a message")
         .clone();
-    println!(
-        "[rb_protocol::get_node_value] (extern) returning {}",
-        &message_rust
-    );
+    // println!(
+    //     "[rb_protocol::get_node_value] (extern) returning {}",
+    //     &message_rust
+    // );
     rust_string_to_lean(message_rust)
 }
 
@@ -123,30 +123,30 @@ pub mod lean {
 
     impl Message {
         pub unsafe fn from_lean(msg_lean: *mut lean_object) -> Self {
-            println!("[rb_protocol::lean::Message::from_lean] called");
+            // println!("[rb_protocol::lean::Message::from_lean] called");
             let tag = lean_ptr_tag(msg_lean);
             let mut current_field_id = 0;
             let fields = lean_ctor_num_objs(msg_lean);
 
-            println!("[rb_protocol::lean::Message::from_lean] making assertions about tag {tag} with {fields} objects");
+            // println!("[rb_protocol::lean::Message::from_lean] making assertions about tag {tag} with {fields} objects");
 
             // only EchoMsg and VoteMsg have the originator fields.
             let mut originator: String = String::new();
             if tag == 1 || tag == 2 {
-                println!("[rb_protocol::lean::Message::from_lean] deconstructing originator");
+                // println!("[rb_protocol::lean::Message::from_lean] deconstructing originator");
                 // TODO: fix refcounting here too.
                 originator =
                     lean_string_to_rust(lean_ctor_get(msg_lean, current_field_id), Mode::Borrow);
                 current_field_id += 1;
             }
 
-            println!("[rb_protocol::lean::Message::from_lean] deconstructing round with id {current_field_id}");
+            // println!("[rb_protocol::lean::Message::from_lean] deconstructing round with id {current_field_id}");
             let rx = lean_ctor_get(msg_lean, current_field_id);
             // what_is_this("rx", rx);
             let r: usize = lean_unbox_usize(rx);
             current_field_id += 1;
 
-            println!("[rb_protocol::lean::Message::from_lean] deconstructing v with id {current_field_id}");
+            // println!("[rb_protocol::lean::Message::from_lean] deconstructing v with id {current_field_id}");
             // TODO: there is some dangling pointer issue here.
             // something about the way the packet list gets returned.
             // basically, it seems like `v` is freed after the first packet or something, so
@@ -163,7 +163,7 @@ pub mod lean {
             // free the lean message
             // lean_dec(msg_lean);
 
-            println!("[rb_protocol::lean::Message::from_lean] done");
+            // println!("[rb_protocol::lean::Message::from_lean] done");
             // construct Rust message
             match tag {
                 0 => Message::InitialMsg { r, v },
@@ -236,7 +236,7 @@ pub mod lean {
         /// This function TAKES OWNERSHIP of the lean packet!
         /// Do NOT attempt to use the lean packet after calling this function.
         pub unsafe fn from_lean(packet_lean: *mut lean_object) -> Self {
-            println!("[rb_protocol::lean::Packet::from_lean] called");
+            // println!("[rb_protocol::lean::Packet::from_lean] called");
 
             let src_lean = lean_ctor_get(packet_lean, 0);
             let dst_lean = lean_ctor_get(packet_lean, 1);
@@ -326,7 +326,7 @@ pub mod lean {
         unsafe fn deconstruct_state_and_packets(
             state_and_packets: *mut lean_object,
         ) -> (*mut lean_object, Vec<Packet>) {
-            println!("[rb_protocol::lean::deconstruct_state_and_packets] call");
+            // println!("[rb_protocol::lean::deconstruct_state_and_packets] call");
             // note to self: investigate this part if anything goes wrong at runtime.
 
             // TODO: figure out the borrowing/ownership semantics here.
@@ -338,17 +338,17 @@ pub mod lean {
             // we're probably leaking memory all over the place, but we can worry about that later.
 
             // deconstruct new protocol state
-            println!(
-                "[rb_protocol::lean::deconstruct_state_and_packets] deconstructing protocol state"
-            );
+            // println!(
+            //     "[rb_protocol::lean::deconstruct_state_and_packets] deconstructing protocol state"
+            // );
             assert!(lean_is_ctor(state_and_packets));
             assert!(lean_ctor_num_objs(state_and_packets) == 2);
             let new_state = lean_ctor_get(state_and_packets, 0);
 
             // deconstruct lean packets into rust
-            println!(
-                "[rb_protocol::lean::deconstruct_state_and_packets] deconstructing lean packets"
-            );
+            // println!(
+            //     "[rb_protocol::lean::deconstruct_state_and_packets] deconstructing lean packets"
+            // );
             // RC: `lean_ctor_get` does not seem to increment the ref count.
             // we do not have to free `packets_arr_lean` later.
             let packets_arr_lean = lean_ctor_get(state_and_packets, 1);
@@ -358,9 +358,9 @@ pub mod lean {
 
             let mut packets_to_send = Vec::new();
             for i in 0..n_packets {
-                println!(
-                    "[rb_protocol::lean::deconstruct_state_and_packets] deconstructing packet {i}"
-                );
+                // println!(
+                //     "[rb_protocol::lean::deconstruct_state_and_packets] deconstructing packet {i}"
+                // );
                 let packet_lean = lean_array_uget(packets_arr_lean, i); // borrows the lean packet
 
                 // unmarshall the packet into rust.
@@ -377,7 +377,7 @@ pub mod lean {
             // RC: incrementing refcount of `new_state`.
             // i think we have to do this, since `lean_ctor_get` doesn't seem to increment it.
             // we don't want `new_state` to be freed when the result tuple gets freed.
-            println!("[rb_protocol::lean::deconstruct_state_and_packets] doing refcount stuff");
+            // println!("[rb_protocol::lean::deconstruct_state_and_packets] doing refcount stuff");
             lean_inc(new_state);
 
             // RC: decrement refcount of the result tuple
@@ -389,7 +389,7 @@ pub mod lean {
         }
 
         pub unsafe fn send_message(&mut self, address: String, message: String) -> Vec<Packet> {
-            println!("[rb_protocol::lean::send_message] {address} : {message} ");
+            // println!("[rb_protocol::lean::send_message] {address} : {message} ");
             // update the message db with the current message
             let mut ht = GLOBAL_MESSAGE_HASHTBL
                 .get()
@@ -406,7 +406,7 @@ pub mod lean {
             // RC: increment refcount of `protocol`, since passing it into `send_message` gives it ownership,
             // and we need it to persist after the function call.
             // we do NOT increment `node_state`, since we no longer need it after the call.
-            println!("[rb_protocol::lean::send_message] call");
+            // println!("[rb_protocol::lean::send_message] call");
             lean_inc(self.protocol);
             let state_and_packets = send_message(self.protocol, self.node_state, self.round);
 
@@ -425,11 +425,11 @@ pub mod lean {
         }
 
         pub unsafe fn handle_packet(&mut self, packet: Packet) -> Vec<Packet> {
-            println!("[rb_protocol::lean::Protocol::handle_packet] called");
+            // println!("[rb_protocol::lean::Protocol::handle_packet] called");
             let src_lean = rust_string_to_lean(packet.src);
             let msg_lean = Message::to_lean(packet.msg);
 
-            println!("[rb_protocol::lean::Protocol::handle_packet] calling handle_message in lean");
+            // println!("[rb_protocol::lean::Protocol::handle_packet] calling handle_message in lean");
             // RC: increment refcount of `protocol`, since passing it into `send_message` gives it ownership,
             // and we need it to persist after the function call.
             // we do NOT increment `node_state`, since we no longer need it after the call.
@@ -438,16 +438,16 @@ pub mod lean {
             let state_and_packets =
                 handle_message(self.protocol, self.node_state, src_lean, msg_lean);
 
-            println!(
-                "[rb_protocol::lean::Protocol::handle_packet] deconstructing state and packets"
-            );
+            // println!(
+            //     "[rb_protocol::lean::Protocol::handle_packet] deconstructing state and packets"
+            // );
             let (new_state, packets_to_send) =
                 Self::deconstruct_state_and_packets(state_and_packets);
 
             // update node state
             self.node_state = new_state;
 
-            println!("[rb_protocol::lean::Protocol::handle_packet] returning");
+            // println!("[rb_protocol::lean::Protocol::handle_packet] returning");
             packets_to_send
         }
     }

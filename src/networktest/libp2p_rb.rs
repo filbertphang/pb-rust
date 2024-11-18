@@ -81,6 +81,7 @@ fn send_packet(
             dbg!(&packet);
 
             let packets_to_send = unsafe { protocol.handle_packet(packet) };
+            dbg!(&packets_to_send);
             packets_to_send
                 .into_iter()
                 .for_each(|packet| send_packet(swarm, protocol, packet));
@@ -106,6 +107,7 @@ fn handle_request(
     dbg!(&request.packet);
     // generate new packets to send, and broadcast them
     let packets_to_send = unsafe { protocol.handle_packet(request.packet) };
+    dbg!(&packets_to_send);
 
     packets_to_send
         .into_iter()

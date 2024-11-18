@@ -94,7 +94,7 @@ def handleMessage (st : @NodeState Address Round Value) (src : Address) (msg : @
   | Message.InitialMsg r v =>
     if let .none := st.echoed (src, r) then
       let st' := {st with echoed := st.echoed[(src, r) ↦ some v]};
-      let msg := Message.EchoMsg st.id r v;
+      let msg := Message.EchoMsg src r v;
       let pkts := Packet.broadcast st.id st.allNodes msg
       (st', pkts)
     else none
@@ -130,19 +130,18 @@ def checkVoteCondition (st : RBState) (msg : RBMessage) : Bool :=
   | _ => false
 
 def updateVotedByMessage (st : RBState) (msg : RBMessage) : RBState × List RBPacket :=
-  let msg := dbg_print' (msg, s!"updateVotedByMessage: called")
+  let st := dbg_print' (st, s!"(updatedVotedByMessage): called")
   match msg with
   | Message.EchoMsg q r v | Message.VoteMsg q r v =>
-    let next_vtd := st.voted[(q, r) ↦ some v]
-    let next_st := {st with voted := next_vtd}
-    let next_st := dbg_print' (next_st, "updateVotedByMessage: done")
-    let pkts := Packet.broadcast st.id st.allNodes (Message.VoteMsg q r v)
-    (next_st, pkts)
+    let st := dbg_print' (st, s!"(updatedVotedByMessage): echo or vote case")
+    ({st with voted := st.voted[(q, r) ↦ some v]}, Packet.broadcast st.id st.allNodes (Message.VoteMsg q r v))
   | _ => (st, [])
 
 def tryUpdateOutputByMessage (st : RBState) (msg : RBMessage) : RBState :=
+  let st := dbg_print' (st, s!"(tryUpdateOutputByMessage): called")
   if let Message.VoteMsg q r v := msg then
     if thresVote4Output st ≤ List.length (st.msgReceivedFrom msg) then
+      let st := dbg_print' (st, s!"(tryUpdateOutputByMessage): if case")
       let l := st.output (q, r)
       {st with output := st.output[(q, r) ↦ l.insert v]}
     else
@@ -156,13 +155,16 @@ def routineCheck (st : RBState) (msg : RBMessage) : RBState × List RBPacket :=
   -- let st'' := tryUpdateOutputByMessage st' msg
   -- (st'', pkts)
   -- Need to make the if be the outermost thing?
-  let vc := checkVoteCondition st msg
-  if vc then
+  let st := dbg_print' (st, s!"(routineCheck): thresEcho4Vote is {thresEcho4Vote st}")
+  let st := dbg_print' (st, s!"(routineCheck): thresVote4Vote is {thresVote4Vote st}")
+  let st := dbg_print' (st, s!"(routineCheck): len msgRcvFrom is {List.length (st.msgReceivedFrom msg)}")
+  if checkVoteCondition st msg then
     let st := dbg_print' (st, s!"(routineCheck): if case")
     let (st', pkts) := updateVotedByMessage st msg
     let st'' := tryUpdateOutputByMessage st' msg
     (st'', pkts)
   else
+    let st := dbg_print' (st, s!"(routineCheck): else case")
     let st'' := tryUpdateOutputByMessage st msg
     (st'', [])
 
@@ -176,7 +178,7 @@ def procMsg (st : @NodeState Address Round Value) (src : Address) (msg : @Messag
     | _ =>
       let st' := dbg_print' (st', s!"(procMsg): calling routinecheck")
       let (st'', pkts') := routineCheck st' msg
-      let pp := dbg_print' (pkts ++ pkts', s!"returned from routinecheck")
+      let pp := dbg_print' (pkts ++ pkts', s!"(procMsg): returned from routinecheck")
       (st'', pp)
   | none =>
       (st, [])
