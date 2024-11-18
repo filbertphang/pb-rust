@@ -21,7 +21,7 @@ unsafe fn test_return_from_lean() {
 
     let lean_str = rust_string_to_lean(msg);
     let result_obj = simple::return_hello(lean_str);
-    let rust_str = lean_string_to_rust(result_obj);
+    let rust_str = lean_string_to_rust(result_obj, Mode::Owned);
 
     println!("{rust_str}");
 }
@@ -42,7 +42,7 @@ unsafe fn test_print_from_lean() {
 // the lean side.
 #[no_mangle]
 pub unsafe extern "C" fn from_rust(s: *mut lean_object) -> *mut lean_object {
-    let rust_str = lean_string_to_rust(s);
+    let rust_str = lean_string_to_rust(s, Mode::Owned);
 
     // body code
     let res = format!("{rust_str} (from rust!!)");
@@ -67,8 +67,8 @@ unsafe fn test_double_call() {
     let lean_s1 = simple::return_hello(lean_s);
     let lean_s2 = simple::return_hello(lean_s);
 
-    let lean_s11 = lean_string_to_rust(lean_s1);
-    let lean_s21 = lean_string_to_rust(lean_s2);
+    let lean_s11 = lean_string_to_rust(lean_s1, Mode::Owned);
+    let lean_s21 = lean_string_to_rust(lean_s2, Mode::Owned);
 
     println!("{lean_s11}");
     println!("{lean_s21}");

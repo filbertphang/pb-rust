@@ -2,6 +2,11 @@ use lean_sys::*;
 
 pub const VOID_PTR_SIZE: usize = size_of::<*mut std::ffi::c_void>();
 
+pub enum Mode {
+    Borrow,
+    Owned,
+}
+
 // strings
 // TODO: is there a better way that transfers ownership from rust to lean
 // without de-allocating/re-allocating?
@@ -22,13 +27,16 @@ pub unsafe fn rust_string_to_lean(s: String) -> *mut lean_object {
 
 /// Copies a Lean string into Rust.
 /// The Lean string will be deallocated, and re-allocated on the Rust side.
-pub unsafe fn lean_string_to_rust(s: *mut lean_object) -> String {
+pub unsafe fn lean_string_to_rust(s: *mut lean_object, mode: Mode) -> String {
     let result_c_str_ptr = lean_string_cstr(s);
     let result_c_str = std::ffi::CStr::from_ptr(result_c_str_ptr as *const i8);
     let result_str = result_c_str.to_str().unwrap().to_string();
 
     // free c-str on lean side
-    lean_dec(s);
+    match mode {
+        Mode::Borrow => (),
+        Mode::Owned => lean_dec(s),
+    }
 
     result_str
 }

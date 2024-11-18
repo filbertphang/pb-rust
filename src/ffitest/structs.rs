@@ -40,9 +40,9 @@ unsafe fn test_structures() {
     let v = rust_string_to_lean(String::from("hello from rust!"));
     let structured_msg = structs::return_structured_msg(o, r, v);
 
-    let oo = lean_string_to_rust(lean_ctor_get(structured_msg, 0));
+    let oo = lean_string_to_rust(lean_ctor_get(structured_msg, 0), Mode::Owned);
     let rr = lean_usize_of_nat(lean_ctor_get(structured_msg, 1));
-    let vv = lean_string_to_rust(lean_ctor_get(structured_msg, 2));
+    let vv = lean_string_to_rust(lean_ctor_get(structured_msg, 2), Mode::Owned);
 
     println!("Address: {oo}, Round: {rr}, Value: {vv}");
 }
@@ -61,9 +61,9 @@ unsafe fn test_inductives() {
     assert!(fields == 3);
     println!("Constructor Tag: {tag}, Fields: {fields}");
 
-    let oo = lean_string_to_rust(lean_ctor_get(inductive_msg, 0));
+    let oo = lean_string_to_rust(lean_ctor_get(inductive_msg, 0), Mode::Owned);
     let rr = lean_usize_of_nat(lean_ctor_get(inductive_msg, 1));
-    let vv = lean_string_to_rust(lean_ctor_get(inductive_msg, 2));
+    let vv = lean_string_to_rust(lean_ctor_get(inductive_msg, 2), Mode::Owned);
 
     println!("Address: {oo}, Round: {rr}, Value: {vv}");
 }
@@ -93,9 +93,9 @@ unsafe fn test_compounds() {
 
     // side note: all this boxing/unboxing may be possible to automate with a macro,
     // but i'm leaving that as a stretch goal.
-    let oo = lean_string_to_rust(lean_ctor_get(msg, 0));
+    let oo = lean_string_to_rust(lean_ctor_get(msg, 0), Mode::Owned);
     let rr = lean_usize_of_nat(lean_ctor_get(msg, 1));
-    let vv = lean_string_to_rust(lean_ctor_get(msg, 2));
+    let vv = lean_string_to_rust(lean_ctor_get(msg, 2), Mode::Owned);
 
     println!("Address: {oo}, Round: {rr}, Value: {vv}");
 }

@@ -63,11 +63,11 @@ unsafe fn test_strings() {
     println!("is array: {isarr}");
 
     let boxed_elem = lean_array_uget(arr, 0);
-    let ax = lean_string_to_rust(boxed_elem);
+    let ax = lean_string_to_rust(boxed_elem, Mode::Owned);
     println!("first elem: {ax}");
 
     let boxed_elem2 = lean_array_uget(arr, 1);
-    let bx = lean_string_to_rust(boxed_elem2);
+    let bx = lean_string_to_rust(boxed_elem2, Mode::Owned);
     println!("snd elem: {bx}");
 
     println!("=== rust arrays to lean ===");

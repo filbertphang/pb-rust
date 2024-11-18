@@ -1,4 +1,4 @@
-use crate::ffitest::lean_helpers::{self, rust_string_to_lean};
+use crate::ffitest::lean_helpers::{self, rust_string_to_lean, Mode};
 use lean_sys::*;
 use once_cell::sync::OnceCell;
 use std::{collections::HashMap, error::Error, fmt::Display, sync::Mutex};
@@ -21,7 +21,7 @@ pub unsafe extern "C" fn get_node_value(node_address: *mut lean_object) -> *mut 
         .lock()
         .unwrap();
     println!("[rb_protocol::get_node_value] (extern) global hashtbl acquired");
-    let node_address_rust = lean_helpers::lean_string_to_rust(node_address);
+    let node_address_rust = lean_helpers::lean_string_to_rust(node_address, Mode::Owned);
     let message_rust = ht
         .get(&node_address_rust)
         .expect("node should always have a message")
@@ -35,7 +35,7 @@ pub unsafe extern "C" fn get_node_value(node_address: *mut lean_object) -> *mut 
 
 pub mod lean {
 
-    use crate::ffitest::lean_helpers::{self, lean_string_to_rust, rust_string_to_lean};
+    use crate::ffitest::lean_helpers::{self, lean_string_to_rust, rust_string_to_lean, Mode};
     use lean_sys::*;
     use std::{collections::HashMap, sync::Mutex};
 
@@ -134,7 +134,9 @@ pub mod lean {
             let mut originator: String = String::new();
             if tag == 1 || tag == 2 {
                 println!("[rb_protocol::lean::Message::from_lean] deconstructing originator");
-                originator = lean_string_to_rust(lean_ctor_get(msg_lean, current_field_id));
+                // TODO: fix refcounting here too.
+                originator =
+                    lean_string_to_rust(lean_ctor_get(msg_lean, current_field_id), Mode::Borrow);
                 current_field_id += 1;
             }
 
@@ -150,11 +152,16 @@ pub mod lean {
             // basically, it seems like `v` is freed after the first packet or something, so
             // we cannot use it again for the second packet?
             let vx = lean_ctor_get(msg_lean, current_field_id);
-            // what_is_this("vx", vx);
-            let v = lean_string_to_rust(vx);
+            // TODO: temporarily convert the lean string to rust as borrowed, since it's shared.
+            // handle memory leaks later.
+            let v = lean_string_to_rust(vx, Mode::Borrow);
 
+            // TODO: re-free this.
+            // right now, the same message is referenced across multiple packets.
+            // so we can't free it.
+            // figure out a way to make them all borrow from the packet somehow?
             // free the lean message
-            lean_dec(msg_lean);
+            // lean_dec(msg_lean);
 
             println!("[rb_protocol::lean::Message::from_lean] done");
             // construct Rust message
@@ -239,14 +246,14 @@ pub mod lean {
                 (3 * lean_helpers::VOID_PTR_SIZE).try_into().unwrap();
             let consumed_lean = lean_ctor_get_uint8(packet_lean, consumed_lean_offset);
 
-            let src = lean_string_to_rust(src_lean);
-            let dst = lean_string_to_rust(dst_lean);
+            let src = lean_string_to_rust(src_lean, Mode::Owned);
+            let dst = lean_string_to_rust(dst_lean, Mode::Owned);
             let msg = Message::from_lean(msg_lean);
             // no formal way to cast u8 to bool, so we do this instead
             let consumed: bool = consumed_lean != 0;
 
             // free the lean packet, since we have ownership
-            lean_dec(packet_lean);
+            // lean_dec(packet_lean);
 
             Packet {
                 src,

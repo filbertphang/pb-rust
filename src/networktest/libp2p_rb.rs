@@ -54,18 +54,38 @@ impl RequestResponseMDNSBehaviour {
 }
 
 // request and response handlers
-fn send_packet(swarm: &mut Swarm<RequestResponseMDNSBehaviour>, packet: rb_protocol::lean::Packet) {
+fn send_packet(
+    swarm: &mut Swarm<RequestResponseMDNSBehaviour>,
+    protocol: &mut rb_protocol::lean::Protocol,
+    packet: rb_protocol::lean::Packet,
+) {
     // note: `request_response::send_request` will automatically dial a peer
     // to send a message to them, if we don't yet have an active connection to them.
     let dst_id =
         PeerId::from_str(packet.dst.as_str()).expect("expected well-formed destination address");
 
-    println!("sending packet:");
-    dbg!(&packet);
-    swarm
-        .behaviour_mut()
-        .request_response
-        .send_request(&dst_id, RBRequest { packet });
+    let self_id = swarm.local_peer_id();
+
+    // libp2p does not support sending
+    match &dst_id == self_id {
+        false => {
+            println!("sending packet to external destination:");
+            dbg!(&packet);
+            swarm
+                .behaviour_mut()
+                .request_response
+                .send_request(&dst_id, RBRequest { packet });
+        }
+        true => {
+            println!("sending packet to self:");
+            dbg!(&packet);
+
+            let packets_to_send = unsafe { protocol.handle_packet(packet) };
+            packets_to_send
+                .into_iter()
+                .for_each(|packet| send_packet(swarm, protocol, packet));
+        }
+    }
 }
 
 fn handle_request(
@@ -89,7 +109,7 @@ fn handle_request(
 
     packets_to_send
         .into_iter()
-        .for_each(|packet| send_packet(swarm, packet));
+        .for_each(|packet| send_packet(swarm, protocol, packet));
 }
 
 fn handle_response(peer_id: &PeerId, response: &rb_protocol::RBResponse) {
@@ -120,11 +140,11 @@ fn handle_stdin(
             unsafe {
                 lean_helpers::initialize_lean_environment(rb_protocol::lean::initialize_Protocol);
 
-                let all_peers: Vec<String> =
+                let mut all_peers: Vec<String> =
                     swarm.connected_peers().map(PeerId::to_string).collect();
-                // TODO: settle the self-dial thing
-                // all_peers.push(my_address.clone());
+                all_peers.push(my_address.clone());
                 dbg!(&all_peers);
+
                 let new_protocol = rb_protocol::lean::Protocol::create(all_peers, my_address);
 
                 protocol.replace(new_protocol);
@@ -138,18 +158,16 @@ fn handle_stdin(
         }
         (Some(_), message) => {
             // generates packets to send from lean,
-            let packets_to_send = unsafe {
-                let p = protocol.as_mut().unwrap();
-                dbg!(&p);
+            let p = protocol.as_mut().unwrap();
+            dbg!(&p);
 
-                p.send_message(my_address, String::from(message))
-            };
+            let packets_to_send = unsafe { p.send_message(my_address, String::from(message)) };
 
             // ..., then send them via libp2p.
             println!("[libp2p_rb::handle_stdin] sending packets");
             packets_to_send
                 .into_iter()
-                .for_each(|packet| send_packet(swarm, packet));
+                .for_each(|packet| send_packet(swarm, p, packet));
         }
     }
 }

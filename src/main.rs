@@ -6,6 +6,9 @@ mod networktest {
     pub mod libp2p_mdns_request_response;
     pub mod libp2p_rb;
     mod rb_protocol;
+    #[allow(dead_code, unused_variables)]
+    pub mod sandbox;
+    #[allow(dead_code)]
     pub mod tcp;
 }
 
@@ -23,6 +26,7 @@ fn main() {
         "mp" => networktest::libp2p_mdns_ping::main().unwrap(),
         "mrr" => networktest::libp2p_mdns_request_response::main().unwrap(),
         "rb" => networktest::libp2p_rb::main().unwrap(),
+        "sb" => networktest::sandbox::main(),
         "ffis" => {
             let module = args().nth(2).unwrap();
             ffitest::simple::main(module.as_str());

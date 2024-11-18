@@ -18,12 +18,7 @@ e.g. `cargo run -- mrr` to execute the `libp2p_mdns_request_response` example.
 
 ### reliable broadcast
 
-latest update: 15 Nov 24 1636H
+latest update: 18 Nov 24 1439H
 
 - build: ok
-- runs without crashing with 2 nodes total (1 leader 1 echoer)
-  - fails for more than 2 nodes, due to the dangling message pointer issue (see below)
-- protocol is not correct
-  - need to include self in the node list when creating protocol
-  - need to handle self messaging since we can't swarm dial self
-  - need to handle the dangling message pointer issue for packets (search for TODO)
+- currently investigating why protocol does not enter the voting phase
