@@ -155,9 +155,6 @@ def routineCheck (st : RBState) (msg : RBMessage) : RBState × List RBPacket :=
   -- let st'' := tryUpdateOutputByMessage st' msg
   -- (st'', pkts)
   -- Need to make the if be the outermost thing?
-  let st := dbg_print' (st, s!"(routineCheck): thresEcho4Vote is {thresEcho4Vote st}")
-  let st := dbg_print' (st, s!"(routineCheck): thresVote4Vote is {thresVote4Vote st}")
-  let st := dbg_print' (st, s!"(routineCheck): len msgRcvFrom is {List.length (st.msgReceivedFrom msg)}")
   if checkVoteCondition st msg then
     let st := dbg_print' (st, s!"(routineCheck): if case")
     let (st', pkts) := updateVotedByMessage st msg

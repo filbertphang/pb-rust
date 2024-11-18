@@ -18,7 +18,23 @@ e.g. `cargo run -- mrr` to execute the `libp2p_mdns_request_response` example.
 
 ### reliable broadcast
 
-latest update: 18 Nov 24 1439H
+latest update: 19 Nov 24 0207H
 
-- build: ok
-- currently investigating why protocol does not enter the voting phase
+- initial proof of concept
+
+**install**
+
+- no special install instructions. just make sure you have lean toolchain v4.11.0 installed in elan, cargo
+  should settle the rust dependencies automatically
+
+**instructions to run**
+
+- git clone the repo
+- open `n` terminal windows
+- in all of them, run `cargo run -- rb`
+- ensure that all nodes have discovered each other. you should see a message like the following for each of the `n-1` other nodes: `mdns discovered a new peer: FJLDJE`
+- pick a node as the leader node. you should see its peer id printed like:
+  `my peer id: 12D3KooWFgPsALZhvdDneAhRukLg92BrNSAXhpZV18nj9r9g3vm7`
+- copy the peer id, and type `init <leader-peer-id>` into each terminal window. all of them should say `>> initialized`.
+- in the leader node, type anything and press enter. this will be treated as the message, and will be broadcast to all nodes
+- watch as the nodes achieve consensus!

@@ -18,8 +18,11 @@ pub fn main() {
         let me = String::from("my_addr");
 
         println!("creating protocol...");
-        let mut my_protocol =
-            rb_protocol::lean::Protocol::create(vec![peer.clone(), peer2.clone()], me.clone());
+        let mut my_protocol = rb_protocol::lean::Protocol::create(
+            vec![peer.clone(), peer2.clone()],
+            me.clone(),
+            me.clone(),
+        );
 
         let my_init_text = String::from("this is an initial message");
         let init_packets = my_protocol.send_message(me.clone(), my_init_text);

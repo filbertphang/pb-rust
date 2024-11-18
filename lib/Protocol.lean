@@ -64,3 +64,18 @@ def send_message (p: ConcreteRBProtocol) (node_state: ConcreteRBState) (round: C
 def handle_message (p: ConcreteRBProtocol) (node_state: ConcreteRBState) (src: ConcreteAddress) (msg: ConcreteRBMessage) : ConcreteRBState × Array ConcreteRBPacket :=
   let (new_state, packet_list) := p.procMessage node_state src msg
   (new_state, List.toArray packet_list)
+
+-- TODO: remove ConcreteValueOption
+-- used this to debug why the result of `check_output` would segfault in rust,
+-- but still couldn't figure out why :-(
+inductive ConcreteValueOption :=
+  | None : ConcreteValueOption
+  | Some : ConcreteValue → ConcreteValueOption
+
+@[export check_output]
+def check_output (node_state: ConcreteRBState) (leader: ConcreteAddress) (round: ConcreteRound) : ConcreteValueOption :=
+  let out := node_state.output (leader, round)
+  let out := dbg_print' (out, s!"(check_output) Consensus for round {round}: {out}")
+  match out with
+  | [] => ConcreteValueOption.None
+  | o :: _ => ConcreteValueOption.Some o

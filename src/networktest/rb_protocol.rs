@@ -83,6 +83,11 @@ pub mod lean {
             src: lean_sys::lean_obj_arg,
             msg: lean_sys::lean_obj_arg,
         ) -> lean_sys::lean_obj_res;
+        fn check_output(
+            node_state: lean_sys::lean_obj_arg,
+            leader: lean_sys::lean_obj_arg,
+            round: usize,
+        ) -> lean_sys::lean_obj_res;
     }
 
     // note: even though the lean representation looks identical to this enum type,
@@ -122,11 +127,18 @@ pub mod lean {
     }
 
     impl Message {
+        pub fn get_round(&self) -> usize {
+            match &self {
+                Self::InitialMsg { r, .. } | Self::EchoMsg { r, .. } | Self::VoteMsg { r, .. } => {
+                    *r
+                }
+            }
+        }
         pub unsafe fn from_lean(msg_lean: *mut lean_object) -> Self {
             // println!("[rb_protocol::lean::Message::from_lean] called");
             let tag = lean_ptr_tag(msg_lean);
             let mut current_field_id = 0;
-            let fields = lean_ctor_num_objs(msg_lean);
+            // let fields = lean_ctor_num_objs(msg_lean);
 
             // println!("[rb_protocol::lean::Message::from_lean] making assertions about tag {tag} with {fields} objects");
 
@@ -283,10 +295,11 @@ pub mod lean {
         pub protocol: *mut lean_object,
         pub node_state: *mut lean_object,
         pub round: usize,
+        pub leader: String,
     }
 
     impl Protocol {
-        pub unsafe fn create(node_list: Vec<String>, address: String) -> Self {
+        pub unsafe fn create(node_list: Vec<String>, address: String, leader: String) -> Self {
             // initialize protocol
             let node_array_lean = lean_helpers::rust_string_vec_to_lean_array(node_list);
             let protocol = create_protocol(node_array_lean);
@@ -316,6 +329,7 @@ pub mod lean {
                 protocol,
                 node_state,
                 round,
+                leader,
             }
         }
 
@@ -449,6 +463,33 @@ pub mod lean {
 
             // println!("[rb_protocol::lean::Protocol::handle_packet] returning");
             packets_to_send
+        }
+
+        pub unsafe fn check_output(&mut self, round: usize) {
+            let leader = rust_string_to_lean(self.leader.clone());
+
+            lean_inc(self.node_state);
+            let _output_opt_lean = check_output(self.node_state, leader, round);
+
+            // TODO: there's currently something very wrong with this, where
+            // the result of the `check_output` call doesn't even seem to be a valid Lean object.
+            // trying to do anything wiht it just segfaults.
+            // currently, we just debug print the output from lean directly as a band-aid solution.
+            // what_is_this("my option", output_opt_lean);
+
+            // let cast = |lean_str| lean_string_to_rust(lean_str, Mode::Borrow);
+            // let output_opt = lean_option_to_rust(output_opt_lean, cast);
+
+            // // we would normally return [output_opt] here to pass back to the application code,
+            // // but for now we just display it.
+            // match output_opt {
+            //     Some(v) => {
+            //         println!("\n============ CONSENSUS OBTAINED FOR ROUND {round} =============");
+            //         println!("\nValue: {v}\n");
+            //         println!("===============================================================\n");
+            //     }
+            //     None => (),
+            // }
         }
     }
 }

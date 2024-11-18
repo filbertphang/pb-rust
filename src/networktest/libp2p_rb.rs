@@ -79,12 +79,17 @@ fn send_packet(
         true => {
             println!("sending packet to self:");
             dbg!(&packet);
+            let round = packet.msg.get_round();
 
             let packets_to_send = unsafe { protocol.handle_packet(packet) };
             dbg!(&packets_to_send);
             packets_to_send
                 .into_iter()
                 .for_each(|packet| send_packet(swarm, protocol, packet));
+
+            unsafe {
+                protocol.check_output(round);
+            };
         }
     }
 }
@@ -105,6 +110,8 @@ fn handle_request(
 
     println!("received request:");
     dbg!(&request.packet);
+    let round = request.packet.msg.get_round();
+
     // generate new packets to send, and broadcast them
     let packets_to_send = unsafe { protocol.handle_packet(request.packet) };
     dbg!(&packets_to_send);
@@ -112,6 +119,10 @@ fn handle_request(
     packets_to_send
         .into_iter()
         .for_each(|packet| send_packet(swarm, protocol, packet));
+
+    unsafe {
+        protocol.check_output(round);
+    };
 }
 
 fn handle_response(peer_id: &PeerId, response: &rb_protocol::RBResponse) {
@@ -137,26 +148,37 @@ fn handle_stdin(
 ) {
     let my_address = swarm.local_peer_id().to_string();
     match (&protocol, line) {
-        (None, "init") => {
-            // initialize lean & protocol
-            unsafe {
-                lean_helpers::initialize_lean_environment(rb_protocol::lean::initialize_Protocol);
+        (None, command) => {
+            let cmd_args: Vec<&str> = command.split_ascii_whitespace().collect();
 
-                let mut all_peers: Vec<String> =
-                    swarm.connected_peers().map(PeerId::to_string).collect();
-                all_peers.push(my_address.clone());
-                dbg!(&all_peers);
+            // initialization command:
+            // init <peer id of leader node>
+            if cmd_args.len() == 2 && cmd_args[0] == "init" {
+                // initialize lean & protocol
+                unsafe {
+                    lean_helpers::initialize_lean_environment(
+                        rb_protocol::lean::initialize_Protocol,
+                    );
 
-                let new_protocol = rb_protocol::lean::Protocol::create(all_peers, my_address);
+                    let mut all_peers: Vec<String> =
+                        swarm.connected_peers().map(PeerId::to_string).collect();
+                    all_peers.push(my_address.clone());
+                    dbg!(&all_peers);
 
-                protocol.replace(new_protocol);
+                    let new_protocol = rb_protocol::lean::Protocol::create(
+                        all_peers,
+                        my_address,
+                        String::from(cmd_args[1]),
+                    );
 
-                println!(">> initialized!")
+                    protocol.replace(new_protocol);
+
+                    println!(">> initialized!");
+                }
+            } else {
+                // do nothing. before the protocol is initialized, we only accept the "init" command.
+                println!(">> not yet initialized. run the 'init' command first!")
             }
-        }
-        (None, _) => {
-            // do nothing. before the protocol is initialized, we only accept the "init" command.
-            println!(">> not yet initialized. run the 'init' command first!")
         }
         (Some(_), message) => {
             // generates packets to send from lean,
@@ -196,8 +218,8 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     // Tell the swarm to listen on all interfaces and a random, OS-assigned port.
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
 
-    let my_truncated_peer_id = truncate_peer_id(swarm.local_peer_id());
-    println!("my peer id: {my_truncated_peer_id}");
+    let my_peer_id = swarm.local_peer_id();
+    println!("my peer id: {my_peer_id}");
 
     // stdin reader
     let mut stdin = io::BufReader::new(io::stdin()).lines();
