@@ -1,10 +1,20 @@
-# pb-rust
+# lean-rust-examples
 
-among other things, some kind of a implementation for provable broadcast (PB) in rust
+a very messy sandbox containing various examples for working with lean structures in rust (and vice versa)
+
+(as of 12/01/25: i may decide to tidy this up eventually, but it's not a priority right now!)
 
 ## usage
 
+### ffitest
+
+self-explanatory: the various files (`arrays`, `globals`, `simple`, `structs`) showcase simple examples of working with those types of structures in lean.
+
+the complementary lean code can be found in `lib/`.
+
 ### networktest
+
+**this section has nothing to do with lean!**
 
 the poorly-named `networktest` module consists of 3 examples, in increasing complexity:
 
@@ -16,7 +26,7 @@ the poorly-named `networktest` module consists of 3 examples, in increasing comp
 to run, execute `cargo run -- <example>`.
 e.g. `cargo run -- mrr` to execute the `libp2p_mdns_request_response` example.
 
-### reliable broadcast
+#### reliable broadcast
 
 latest update: 19 Nov 24 0207H
 
